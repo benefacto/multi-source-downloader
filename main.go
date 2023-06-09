@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/sha256"
+	"crypto/md5"
 	"fmt"
 	"io"
 	"log"
@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// TODO: Move this to config or have this be a default for a command line argument
 	fileURL = "https://zenodo.org/record/4435114/files/supplement.csv?download=1"
 )
 
@@ -37,9 +38,9 @@ func main() {
 		infoLogger.Println("File is", fileSize, "bytes with Etag:", etag)
 	}
 
-	numberOfChunks := 4
+	numberOfChunks := 4 // TODO: Move to config or otherwise determine dynamically
 
-	infoLogger.Println("Downloading file in", numberOfChunks, "chunks")
+	infoLogger.Println("Downloading file in", numberOfChunks, "chunks...")
 
 	chunkSize := fileSize / numberOfChunks
 	remainingBytes := fileSize % numberOfChunks
@@ -64,7 +65,7 @@ func main() {
 				errorLogger.Println("Chunk", currentChunkIndex, ": Error making HTTP GET request to", fileURL, err)
 				return
 			} else {
-				infoLogger.Println("Chunk", currentChunkIndex, ": Downloading file in", numberOfChunks, "chunks")
+				infoLogger.Println("Chunk", currentChunkIndex, ": Downloading file...")
 			}
 
 			rangeHeader := fmt.Sprintf("bytes=%d-%d", start, end)
@@ -74,7 +75,7 @@ func main() {
 				errorLogger.Println("Chunk", currentChunkIndex, ": Error making HTTP Range request to", fileURL, err)
 				return
 			} else {
-				infoLogger.Println("Chunk", currentChunkIndex, ": Downloading file range for", rangeHeader)
+				infoLogger.Println("Chunk", currentChunkIndex, ": Downloading file range for", rangeHeader, "...")
 			}
 
 			body := make([]byte, end-start+1)
@@ -94,6 +95,7 @@ func main() {
 
 	t := time.Now()
 	timestamp := t.Format("20060102_150405")
+	// Currently assumes a CSV output file
 	fileName := fmt.Sprintf("output_%s.csv", timestamp)
 	file, err := os.Create(fileName)
 	if err != nil {
@@ -104,7 +106,7 @@ func main() {
 	}
 	defer file.Close()
 
-	hash := sha256.New()
+	hash := md5.New()
 	for currentChunkIndex := 0; currentChunkIndex < numberOfChunks; currentChunkIndex++ {
 		_, err = file.Write(chunks[currentChunkIndex])
 		if err != nil {
@@ -122,9 +124,9 @@ func main() {
 		}
 	}
 
-	downloadedFileHash := fmt.Sprintf(`"%x"`, hash.Sum(nil))
+	downloadedFileHash := fmt.Sprintf(`"md5:%x"`, hash.Sum(nil))
 	if downloadedFileHash == etag {
-		infoLogger.Println("Download completed successfully. File hash matches the ETag.")
+		infoLogger.Println("File hash:", downloadedFileHash ,"matches the ETag:", etag)
 	} else {
 		warningLogger.Println("File hash:", downloadedFileHash ,"does not match the ETag:", etag)
 	}
