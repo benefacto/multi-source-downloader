@@ -17,6 +17,7 @@ func TestDownloadFile(t *testing.T) {
 	)
 	// setup parameters
 	params := downloader.DownloadParams{
+		// Using a small test file for a quick download
 		URL:           "https://zenodo.org/record/4435114/files/users_inferred.csv?download=1",
 		ChunkSize:     1024,
 		MaxRetries:    3,
