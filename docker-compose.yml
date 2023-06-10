@@ -1,0 +1,6 @@
+version: "3.9"
+services:
+  multi-source-downloader:
+    build: .
+    volumes:
+      - ./:/multi-source-downloader
