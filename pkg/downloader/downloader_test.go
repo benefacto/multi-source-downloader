@@ -23,16 +23,19 @@ func TestDownloadFile(t *testing.T) {
 		NumberOfChunks: 3,
 	}
 	// execute function
-	err := downloader.DownloadFile(params, l)
+	fileName, err := downloader.DownloadFile(params, l)
 	// assert no error
 	if err != nil {
 		t.Fatal(err)
 	}
+	if fileName == "" {
+		t.Fatal("File name not returned")
+	}
 	// verify that the output file exists
-	// Note: The actual file name may differ based on timestamp.
-	if _, err := os.Stat("output_<timestamp>.csv"); os.IsNotExist(err) {
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		t.Fatal("Output file was not created.")
 	}
 	// TODO: Add more assertions based on what you know about the specific output file,
 	// such as its expected size, contents, etc.
+	os.Remove(fileName)
 }

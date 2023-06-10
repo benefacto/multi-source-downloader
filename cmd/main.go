@@ -21,7 +21,7 @@ func main() {
 		MaxRetries:    3,
 		NumberOfChunks: 3,
 	}
-	err := downloader.DownloadFile(params, l)
+	_, err := downloader.DownloadFile(params, l)
 	if err != nil {
 		log.Fatal(err)
 	}

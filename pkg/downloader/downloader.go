@@ -23,11 +23,11 @@ type DownloadParams struct {
 	NumberOfChunks int
 }
 
-func DownloadFile(params DownloadParams, logger logger.Logger) error {
+func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 	resp, err := http.Head(params.URL)
 	if err != nil {
 		logger.Error("Error making HTTP HEAD request to", params.URL, err)
-		return err
+		return "", err
 	}
 	logger.Info("Successfully made HTTP HEAD request to", params.URL)
 
@@ -35,7 +35,7 @@ func DownloadFile(params DownloadParams, logger logger.Logger) error {
 	fileSize, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
 	if err != nil {
 		logger.Error("Error getting Content-Length header for", params.URL, err)
-		return err
+		return "", err
 	}
 	logger.Info("File is", fileSize, "bytes with ETag:", etag)
 
@@ -68,7 +68,7 @@ func DownloadFile(params DownloadParams, logger logger.Logger) error {
 
 	wg.Wait()
 	if merr != nil {
-		return merr.ErrorOrNil()
+		return "", merr.ErrorOrNil()
 	}
 
 	t := time.Now()
@@ -77,17 +77,17 @@ func DownloadFile(params DownloadParams, logger logger.Logger) error {
 	file, err := os.Create(fileName)
 	if err != nil {
 		logger.Error("Error creating file", fileName, err)
-		return err
+		return "", err
 	}
 	defer file.Close()
 
 	err = mergeFiles(tempFiles, etag, file, logger)
 	if err != nil {
 		logger.Error("Error merging files", err)
-		return err
+		return "", err
 	}
 
-	return nil
+	return fileName, nil
 }
 
 func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params DownloadParams, ctx context.Context, client *http.Client, merr *multierror.Error, merrMux *sync.Mutex, cancel context.CancelFunc, tempFiles []string, logger logger.Logger) error {
