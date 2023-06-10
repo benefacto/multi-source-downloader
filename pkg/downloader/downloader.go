@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -90,6 +91,7 @@ func DownloadFile(params DownloadParams, logger logger.Logger) error {
 }
 
 func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params DownloadParams, ctx context.Context, client *http.Client, merr *multierror.Error, merrMux *sync.Mutex, cancel context.CancelFunc, tempFiles []string, logger logger.Logger) error {
+	var lastErr error
 	for retries := 0; retries < params.MaxRetries; retries++ {
 		start := currentChunkIndex * chunkSize
 		end := start + chunkSize - 1
@@ -101,9 +103,8 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 		if err != nil {
 			logger.Error("Chunk", currentChunkIndex, "had an error making HTTP GET request to", params.URL, err)
 			return err
-		} else {
-			logger.Info("Chunk", currentChunkIndex, "successfully made HTTP GET request to", params.URL)
 		}
+		logger.Info("Chunk", currentChunkIndex, "successfully made HTTP GET request to", params.URL)
 
 		rangeHeader := fmt.Sprintf("bytes=%d-%d", start, end)
 		req.Header.Add("Range", rangeHeader)
@@ -111,8 +112,9 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 		resp, err := client.Do(req)
 		if err != nil {
 			logger.Error("Chunk", currentChunkIndex, "had an error making HTTP Range request to", params.URL, err)
-			if retries < params.MaxRetries - 1 {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && retries < params.MaxRetries - 1 {
 				logger.Info("Retrying chunk", currentChunkIndex, "...")
+				lastErr = err
 				time.Sleep(time.Second * time.Duration(retries+1)) // exponential back-off
 				continue
 			}
@@ -126,8 +128,6 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 		if err != nil {
 			logger.Error("Chunk", currentChunkIndex, "had an error creating temporary file", tmpFileName, err)
 			return err
-		} else {
-			logger.Info("Chunk", currentChunkIndex, "successfully created temporary file", tmpFileName)
 		}
 		defer tmpFile.Close()
 
@@ -135,13 +135,12 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 		if err != nil {
 			logger.Error("Chunk", currentChunkIndex, "had an error writing to temporary file", tmpFileName, err)
 			return err
-		} else {
-			logger.Info("Chunk", currentChunkIndex, "successfully wrote to temporary file", tmpFileName)
 		}
+		logger.Info("Chunk", currentChunkIndex, "successfully wrote to temporary file", tmpFileName)
 
 		break
 	}
-	return nil
+	return lastErr
 }
 
 func mergeFiles(tempFiles []string, etag string, outputFile *os.File, logger logger.Logger) error {
