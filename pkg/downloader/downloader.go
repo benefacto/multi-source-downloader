@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benefacto/multi-source-downloader/logger"
+	"github.com/benefacto/multi-source-downloader/pkg/logger"
 	"github.com/hashicorp/go-multierror"
 )
 

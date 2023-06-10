@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/benefacto/multi-source-downloader/downloader"
-	"github.com/benefacto/multi-source-downloader/logger"
+	"github.com/benefacto/multi-source-downloader/pkg/downloader"
+	"github.com/benefacto/multi-source-downloader/pkg/logger"
 )
 
 func main() {
