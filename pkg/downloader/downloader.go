@@ -20,7 +20,7 @@ type DownloadParams struct {
 	NumberOfChunks int
 }
 
-func DownloadFile(params DownloadParams, logger Logger) error {
+func DownloadFile(params DownloadParams, logger logger.Logger) error {
 	resp, err := http.Head(params.URL)
 	if err != nil {
 		logger.Error("Error making HTTP HEAD request to", params.URL, err)
