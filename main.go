@@ -45,10 +45,11 @@ func main() {
 	var wg sync.WaitGroup
 	md5Hash := md5.New()
 	tempFiles := make([]string, numberOfChunks) // to store names of temporary files
+	client := &http.Client{}
 
 	for currentChunkIndex := 0; currentChunkIndex < numberOfChunks; currentChunkIndex++ {
 		wg.Add(1)
-		go func(currentChunkIndex int) {
+		go func(currentChunkIndex int, client *http.Client) {
 			defer wg.Done()
 
 			var err error
@@ -59,7 +60,6 @@ func main() {
 					end += remainingBytes
 				}
 
-				client := &http.Client{}
 				req, err := http.NewRequest("GET", fileURL, nil)
 				if err != nil {
 					errorLogger.Println("Chunk", currentChunkIndex, "had an error making HTTP GET request to", fileURL, err)
@@ -108,7 +108,7 @@ func main() {
 			if err != nil {
 				errorLogger.Println("Chunk", currentChunkIndex, "had an error after retries", err)
 			}
-		}(currentChunkIndex)
+		}(currentChunkIndex, client)
 	}
 
 	wg.Wait()
