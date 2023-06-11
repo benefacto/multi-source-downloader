@@ -21,11 +21,14 @@ The application also has the added functionality of verifying the downloaded fil
 │   │   └── downloader_test.go
 │   └── logger
 │       └── logger.go
-        └── logger_test.go
-└── README.md
+│       └── logger_test.go
+├── README.md
+└── .env.example
 ```
 
 ## How to Run
+
+Before running the application, create a `.env` file at the root of the project and populate it with the necessary values. Refer to `.env.example` for the required keys.
 
 You can easily run the downloader using Golang or Docker:
 
@@ -33,7 +36,8 @@ You can easily run the downloader using Golang or Docker:
 
     1. Clone the repository to your local machine.
     2. Navigate to the root directory of the project.
-    3. Run the command: `go run cmd/main.go`
+    3. Create a `.env` file and populate it with the necessary values. Refer to `.env.example` for the required keys.
+    4. Run the command: `go run cmd/main.go`
 
 - **Using Docker**:
 
