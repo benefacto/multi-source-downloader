@@ -53,6 +53,12 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 
 	client := &http.Client{}
 
+	// Ensure output directory exists
+	if err := os.MkdirAll("./output", 0755); err != nil {
+		logger.Error("Error creating output directory", err)
+		return "", err
+	}
+
 	for currentChunkIndex := 0; currentChunkIndex < params.NumberOfChunks; currentChunkIndex++ {
 		wg.Add(1)
 		go func(currentChunkIndex int, client *http.Client) {
@@ -70,12 +76,6 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 	wg.Wait()
 	if merr != nil {
 		return "", merr.ErrorOrNil()
-	}
-
-	// Ensure output directory exists
-	if err := os.MkdirAll("./output", 0755); err != nil {
-		logger.Error("Error creating output directory", err)
-		return "", err
 	}
 
 	t := time.Now()
@@ -129,7 +129,7 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 		}
 		defer resp.Body.Close()
 
-		tmpFileName := fmt.Sprintf("tmpfile_%d", currentChunkIndex)
+		tmpFileName := fmt.Sprintf("./output/tmpfile_%d", currentChunkIndex)
 		tempFiles[currentChunkIndex] = tmpFileName // save name of temp file
 		tmpFile, err := os.Create(tmpFileName)
 		if err != nil {

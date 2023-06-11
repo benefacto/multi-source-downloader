@@ -1,32 +1,26 @@
 package downloader_test
 
 import (
+	"encoding/csv"
+	"io"
+	"log"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"testing"
+
 	"github.com/benefacto/multi-source-downloader/pkg/downloader"
 	"github.com/benefacto/multi-source-downloader/pkg/logger"
-	"log"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestDownloadFile(t *testing.T) {
-	// create a logger
-	l := logger.NewLogger(
-		log.New(os.Stdout, "INFO: ", log.LstdFlags),
-		log.New(os.Stderr, "ERROR: ", log.LstdFlags),
-		log.New(os.Stderr, "WARNING: ", log.LstdFlags),
-	)
-	// setup parameters
-	params := downloader.DownloadParams{
-		// Using a small test file for a quick download
-		URL:            "https://zenodo.org/record/4435114/files/users_inferred.csv?download=1",
-		FileExtension:  "csv",
-		ChunkSize:      1024,
-		MaxRetries:     3,
-		NumberOfChunks: 3,
-	}
+	l := getTestLogger()
+	params := getDownloadParams("https://zenodo.org/record/4435114/files/users_inferred.csv?download=1")
+	
 	// execute function
 	fileName, err := downloader.DownloadFile(params, l)
+
 	// assert no error
 	if err != nil {
 		t.Fatal(err)
@@ -38,21 +32,121 @@ func TestDownloadFile(t *testing.T) {
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		t.Fatal("Output file was not created.")
 	}
-	// TODO: Add more assertions based on what you know about the specific output file,
-	// such as its expected size, contents, etc.
-	defer cleanupOutputDirectory(t, "./output")
-	os.Remove(fileName)
+	
+	// Open the file for reading
+	file, err := os.Open(fileName)
+	if err != nil {
+		t.Fatalf("Failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	// Create a CSV reader
+	reader := csv.NewReader(file)
+
+	// Read the first row
+	firstRow, err := reader.Read()
+	if err != nil {
+		t.Fatalf("Failed to read the first row: %v", err)
+	}
+
+	// Check if the first row contains the header "id"
+	if len(firstRow) != 1 || firstRow[0] != "id" {
+		t.Fatalf("Expected header to be 'id', got %v", firstRow)
+	}
+
+	// Check all rows to ensure they contain a single column of data that can be parsed as an integer
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Failed to read row: %v", err)
+		}
+
+		if len(row) != 1 {
+			t.Fatalf("Expected single column data, got %v", row)
+		}
+
+		_, err = strconv.ParseInt(row[0], 10, 64)
+		if err != nil {
+			t.Fatalf("Failed to parse id '%s' as integer", row[0])
+		}
+	}
+
+	os.RemoveAll("./output")
 }
 
-func cleanupOutputDirectory(t *testing.T, dir string) {
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		return os.RemoveAll(path)
-	})
+func TestDownloadFile_ServerError(t *testing.T) {
+	// Create a test server that always responds with an internal server error
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
 
-	if err != nil {
-		t.Fatalf("Failed to clean up test directory %s: %v", dir, err)
+	l := getTestLogger()
+	params := getDownloadParams(ts.URL)
+	
+	// execute function
+	_, err := downloader.DownloadFile(params, l)
+	if err == nil {
+		t.Fatal("Expected error, but got none")
+	}
+	os.RemoveAll("./output")
+}
+
+func TestDownloadFile_MissingEtagHeader(t *testing.T) {
+	// Create a test server that responds without the Etag header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "10")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	l := getTestLogger()
+	params := getDownloadParams(ts.URL)
+
+	// execute function
+	_, err := downloader.DownloadFile(params, l)
+	if err == nil {
+		t.Fatal("Expected error, but got none")
+	}
+	os.RemoveAll("./output")
+}
+
+func TestDownloadFile_MissingContentLengthHeader(t *testing.T) {
+	// Create a test server that responds without the Content-Length header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Etag", "dummyetag")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	l := getTestLogger()
+	params := getDownloadParams(ts.URL)
+
+	// execute function
+	_, err := downloader.DownloadFile(params, l)
+	if err == nil {
+		t.Fatal("Expected error, but got none")
+	}
+	os.RemoveAll("./output")
+}
+
+func getTestLogger() logger.Logger {
+	return logger.NewLogger(
+		log.New(os.Stdout, "INFO: ", log.LstdFlags),
+		log.New(os.Stderr, "ERROR: ", log.LstdFlags),
+		log.New(os.Stderr, "WARNING: ", log.LstdFlags),
+	)
+}
+
+func getDownloadParams(url string) downloader.DownloadParams {
+	return downloader.DownloadParams{
+		URL:            url,
+		FileExtension:  "csv",
+		ChunkSize:      1024,
+		MaxRetries:     3,
+		NumberOfChunks: 3,
 	}
 }
