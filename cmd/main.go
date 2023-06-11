@@ -16,9 +16,10 @@ func main() {
 	)
 
 	params := downloader.DownloadParams{
-		URL:           "https://zenodo.org/record/4435114/files/supplement.csv?download=1",
-		ChunkSize:     1024,
-		MaxRetries:    3,
+		URL:            "https://zenodo.org/record/4435114/files/supplement.csv?download=1",
+		FileExtension:  "csv",
+		ChunkSize:      1024,
+		MaxRetries:     3,
 		NumberOfChunks: 3,
 	}
 	_, err := downloader.DownloadFile(params, l)

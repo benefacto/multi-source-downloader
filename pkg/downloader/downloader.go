@@ -17,9 +17,10 @@ import (
 )
 
 type DownloadParams struct {
-	URL           string
-	ChunkSize     int
-	MaxRetries    int
+	URL            string
+	FileExtension  string
+	ChunkSize      int
+	MaxRetries     int
 	NumberOfChunks int
 }
 
@@ -71,9 +72,15 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 		return "", merr.ErrorOrNil()
 	}
 
+	// Ensure output directory exists
+	if err := os.MkdirAll("./output", 0755); err != nil {
+		logger.Error("Error creating output directory", err)
+		return "", err
+	}
+
 	t := time.Now()
 	timestamp := t.Format("20060102_150405")
-	fileName := fmt.Sprintf("output_%s.csv", timestamp)
+	fileName := fmt.Sprintf("./output/output_%s.%s", timestamp, params.FileExtension)
 	file, err := os.Create(fileName)
 	if err != nil {
 		logger.Error("Error creating file", fileName, err)
@@ -95,7 +102,7 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 	for retries := 0; retries < params.MaxRetries; retries++ {
 		start := currentChunkIndex * chunkSize
 		end := start + chunkSize - 1
-		if currentChunkIndex == params.NumberOfChunks - 1 {
+		if currentChunkIndex == params.NumberOfChunks-1 {
 			end += remainingBytes
 		}
 
@@ -112,7 +119,7 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 		resp, err := client.Do(req)
 		if err != nil {
 			logger.Error("Chunk", currentChunkIndex, "had an error making HTTP Range request to", params.URL, err)
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && retries < params.MaxRetries - 1 {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && retries < params.MaxRetries-1 {
 				logger.Info("Retrying chunk", currentChunkIndex, "...")
 				lastErr = err
 				time.Sleep(time.Second * time.Duration(retries+1)) // exponential back-off

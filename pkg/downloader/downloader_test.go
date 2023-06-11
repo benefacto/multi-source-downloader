@@ -1,11 +1,12 @@
 package downloader_test
 
 import (
-	"testing"
-	"os"
 	"github.com/benefacto/multi-source-downloader/pkg/downloader"
 	"github.com/benefacto/multi-source-downloader/pkg/logger"
 	"log"
+	"os"
+	"path/filepath"
+	"testing"
 )
 
 func TestDownloadFile(t *testing.T) {
@@ -18,9 +19,10 @@ func TestDownloadFile(t *testing.T) {
 	// setup parameters
 	params := downloader.DownloadParams{
 		// Using a small test file for a quick download
-		URL:           "https://zenodo.org/record/4435114/files/users_inferred.csv?download=1",
-		ChunkSize:     1024,
-		MaxRetries:    3,
+		URL:            "https://zenodo.org/record/4435114/files/users_inferred.csv?download=1",
+		FileExtension:  "csv",
+		ChunkSize:      1024,
+		MaxRetries:     3,
 		NumberOfChunks: 3,
 	}
 	// execute function
@@ -38,5 +40,19 @@ func TestDownloadFile(t *testing.T) {
 	}
 	// TODO: Add more assertions based on what you know about the specific output file,
 	// such as its expected size, contents, etc.
+	defer cleanupOutputDirectory(t, "./output")
 	os.Remove(fileName)
+}
+
+func cleanupOutputDirectory(t *testing.T, dir string) {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.RemoveAll(path)
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to clean up test directory %s: %v", dir, err)
+	}
 }
