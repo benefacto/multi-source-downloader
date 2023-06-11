@@ -21,6 +21,7 @@ The application also has the added functionality of verifying the downloaded fil
 │   │   └── downloader_test.go
 │   └── logger
 │       └── logger.go
+        └── logger_test.go
 └── README.md
 ```
 
