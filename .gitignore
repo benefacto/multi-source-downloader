@@ -23,3 +23,4 @@ go.work
 # Test file downloads
 *.csv
 *tmpfile*
+output/

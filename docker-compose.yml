@@ -4,3 +4,4 @@ services:
     build: .
     volumes:
       - ./:/multi-source-downloader
+      - ./output:/app/output
