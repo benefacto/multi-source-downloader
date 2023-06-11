@@ -1,3 +1,4 @@
+// Package downloader implements methods for downloading a file in parallel from a single source.
 package downloader
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// DownloadParams defines the parameters needed for the download operation.
 type DownloadParams struct {
 	URL            string
 	FileExtension  string
@@ -24,6 +26,8 @@ type DownloadParams struct {
 	NumberOfChunks int
 }
 
+// DownloadFile downloads a file using the specified parameters and logs events with the given logger.
+// It returns the file name and any error encountered.
 func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 	resp, err := http.Head(params.URL)
 	if err != nil {
@@ -97,6 +101,8 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 	return fileName, nil
 }
 
+// downloadChunk is a helper function for downloading a file chunk.
+// It also handles retries if a download fails.
 func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params DownloadParams, ctx context.Context, client *http.Client, merr *multierror.Error, merrMux *sync.Mutex, cancel context.CancelFunc, tempFiles []string, logger logger.Logger) error {
 	var lastErr error
 	for retries := 0; retries < params.MaxRetries; retries++ {
@@ -150,6 +156,8 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 	return lastErr
 }
 
+// mergeFiles merges temporary files into a single output file.
+// It also verifies the integrity of the download by comparing the MD5 hash of the output file with the ETag received from the server.
 func mergeFiles(tempFiles []string, etag string, outputFile *os.File, logger logger.Logger) error {
 	md5HashTempFiles := md5.New()
 	for _, tmpFileName := range tempFiles {
