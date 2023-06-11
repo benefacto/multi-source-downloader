@@ -46,10 +46,10 @@ To run tests, navigate to the root directory of the project and run `go test ./.
 
 The application has undergone several optimization phases and future enhancements are planned:
 
-1. **Previous hacky version**: The initial implementation downloaded the file in 4 chunks directly into memory, which proved to be quite slow (around 12 minutes per file).
-2. **Previous semi-optimized version**: The next iteration downloaded the file in 3 chunks into temporary files. This version was somewhat faster (approximately 5 minutes per file).
-3. **Current more-optimized version**: The current version reuses the HTTP client across chunks, enabling TCP connections to be reused. This implementation is much faster and is largely equivalent to the average speed of my browser's download capabilities (around 2 minutes per file).
-4. **Future further optimized version**: The next planned iteration will utilize multiple connections, smart chunking, various types of caching, pipelining, and other techniques to approach the maximum download speed of a browser. It is expected that this version will further improve the download speed (targeting around 1 minute per file).
+1. **Previous hacky version**: The initial implementation downloaded the file in 4 chunks directly into memory. It was relatively slow with the average download time clocking around 12 minutes per file, depending on the connection speed, server response time, and the host machine's performance.
+2. **Previous semi-optimized version**: The next iteration downloaded the file in 3 chunks into temporary files. This version improved the speed, reducing the average download time to approximately 5 minutes per file. However, the actual times may still vary based on the connection, server, and host machine.
+3. **Current more-optimized version**: The current version reuses the HTTP client across chunks, enabling TCP connections to be reused. This has significantly boosted the download speed, bringing it on par with the average speed of a typical browser's download capabilities, at around 2 minutes per file. This time, too, can fluctuate depending on the connection speed, server response time, and the host machine's performance.
+4. **Future further optimized version**: The next planned iteration will utilize multiple connections, smart chunking, various types of caching, pipelining, and other techniques to approach the maximum download speed of a browser. The aim is to further optimize the download speed, targeting around 1 minute per file. However, it is essential to note that these times will continue to depend on factors such as connection speed, server response times, and host machine performance.
 
 ## License
 
