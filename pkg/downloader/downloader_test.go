@@ -1,3 +1,4 @@
+// Package downloader_test contains tests for the downloader package.
 package downloader_test
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/benefacto/multi-source-downloader/pkg/logger"
 )
 
+// TestDownloadFile tests the DownloadFile function with a valid URL and parameters.
 func TestDownloadFile(t *testing.T) {
 	l := getTestLogger()
 	params := getDownloadParams("https://zenodo.org/record/4435114/files/users_inferred.csv?download=1")
@@ -77,6 +79,7 @@ func TestDownloadFile(t *testing.T) {
 	os.RemoveAll("./output")
 }
 
+// TestDownloadFile_ServerError tests the DownloadFile function with a server that responds with an internal server error.
 func TestDownloadFile_ServerError(t *testing.T) {
 	// Create a test server that always responds with an internal server error
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +98,7 @@ func TestDownloadFile_ServerError(t *testing.T) {
 	os.RemoveAll("./output")
 }
 
+// TestDownloadFile_MissingEtagHeader tests the DownloadFile function with a server that does not include the Etag header in its response.
 func TestDownloadFile_MissingEtagHeader(t *testing.T) {
 	// Create a test server that responds without the Etag header
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +118,7 @@ func TestDownloadFile_MissingEtagHeader(t *testing.T) {
 	os.RemoveAll("./output")
 }
 
+// TestDownloadFile_MissingContentLengthHeader tests the DownloadFile function with a server that does not include the Content-Length header in its response.
 func TestDownloadFile_MissingContentLengthHeader(t *testing.T) {
 	// Create a test server that responds without the Content-Length header
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +138,7 @@ func TestDownloadFile_MissingContentLengthHeader(t *testing.T) {
 	os.RemoveAll("./output")
 }
 
+// getTestLogger creates and returns a test logger with predefined log outputs.
 func getTestLogger() logger.Logger {
 	return logger.NewLogger(
 		log.New(os.Stdout, "INFO: ", log.LstdFlags),
@@ -141,6 +147,7 @@ func getTestLogger() logger.Logger {
 	)
 }
 
+// getDownloadParams creates and returns DownloadParams with the provided URL.
 func getDownloadParams(url string) downloader.DownloadParams {
 	return downloader.DownloadParams{
 		URL:            url,

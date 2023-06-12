@@ -1,3 +1,4 @@
+// Package logger_test contains tests for the logger package.
 package logger_test
 
 import (
@@ -9,6 +10,10 @@ import (
 	"github.com/benefacto/multi-source-downloader/pkg/logger"
 )
 
+// testMessage is the message used in the logger tests.
+const testMessage = "test message"
+
+// TestLogger tests the logger's Info, Error, and Warning methods.
 func TestLogger(t *testing.T) {
 	bufInfo := new(bytes.Buffer)
 	bufError := new(bytes.Buffer)
@@ -20,24 +25,26 @@ func TestLogger(t *testing.T) {
 
 	myLogger := logger.NewLogger(infoLogger, errorLogger, warningLogger)
 
-	t.Run("test info log", func(t *testing.T) {
-		myLogger.Info("info message")
-		if !strings.Contains(bufInfo.String(), "info message") {
-			t.Errorf("Info log does not contain the expected message")
-		}
+	t.Run("Info logs the expected message", func(t *testing.T) {
+		myLogger.Info(testMessage)
+		assertLogContains(t, bufInfo, testMessage)
 	})
 
-	t.Run("test error log", func(t *testing.T) {
-		myLogger.Error("error message")
-		if !strings.Contains(bufError.String(), "error message") {
-			t.Errorf("Error log does not contain the expected message")
-		}
+	t.Run("Error logs the expected message", func(t *testing.T) {
+		myLogger.Error(testMessage)
+		assertLogContains(t, bufError, testMessage)
 	})
 
-	t.Run("test warning log", func(t *testing.T) {
-		myLogger.Warning("warning message")
-		if !strings.Contains(bufWarning.String(), "warning message") {
-			t.Errorf("Warning log does not contain the expected message")
-		}
+	t.Run("Warning logs the expected message", func(t *testing.T) {
+		myLogger.Warning(testMessage)
+		assertLogContains(t, bufWarning, testMessage)
 	})
+}
+
+// assertLogContains checks that the log buffer contains the expected message and fails the test if it does not.
+func assertLogContains(t *testing.T, buf *bytes.Buffer, expected string) {
+	t.Helper()
+	if !strings.Contains(buf.String(), expected) {
+		t.Errorf("Log does not contain the expected message: %s", expected)
+	}
 }
