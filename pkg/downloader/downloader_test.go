@@ -2,6 +2,7 @@
 package downloader_test
 
 import (
+	"context"
 	"encoding/csv"
 	"io"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/benefacto/multi-source-downloader/pkg/downloader"
 	"github.com/benefacto/multi-source-downloader/pkg/logger"
@@ -19,9 +21,10 @@ import (
 func TestDownloadFile(t *testing.T) {
 	l := getTestLogger()
 	params := getDownloadParams("https://zenodo.org/record/4435114/files/users_inferred.csv?download=1")
+	ctx := getContext()
 	
 	// execute function
-	fileName, err := downloader.DownloadFile(params, l)
+	fileName, err := downloader.DownloadFile(ctx, params, l)
 
 	// assert no error
 	if err != nil {
@@ -89,9 +92,10 @@ func TestDownloadFile_ServerError(t *testing.T) {
 
 	l := getTestLogger()
 	params := getDownloadParams(ts.URL)
+	ctx := getContext()
 	
 	// execute function
-	_, err := downloader.DownloadFile(params, l)
+	_, err := downloader.DownloadFile(ctx, params, l)
 	if err == nil {
 		t.Fatal("Expected error, but got none")
 	}
@@ -109,9 +113,10 @@ func TestDownloadFile_MissingEtagHeader(t *testing.T) {
 
 	l := getTestLogger()
 	params := getDownloadParams(ts.URL)
+	ctx := getContext()
 
 	// execute function
-	_, err := downloader.DownloadFile(params, l)
+	_, err := downloader.DownloadFile(ctx, params, l)
 	if err == nil {
 		t.Fatal("Expected error, but got none")
 	}
@@ -129,9 +134,10 @@ func TestDownloadFile_MissingContentLengthHeader(t *testing.T) {
 
 	l := getTestLogger()
 	params := getDownloadParams(ts.URL)
+	ctx := getContext()
 
 	// execute function
-	_, err := downloader.DownloadFile(params, l)
+	_, err := downloader.DownloadFile(ctx, params, l)
 	if err == nil {
 		t.Fatal("Expected error, but got none")
 	}
@@ -156,4 +162,11 @@ func getDownloadParams(url string) downloader.DownloadParams {
 		MaxRetries:     3,
 		NumberOfChunks: 3,
 	}
+}
+
+func getContext() context.Context {
+	// Creating a context with a timeout of 30 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()  // It's important to cancel when we are finished, to free resources
+	return ctx
 }

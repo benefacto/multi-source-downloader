@@ -2,9 +2,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/benefacto/multi-source-downloader/pkg/downloader"
 	"github.com/benefacto/multi-source-downloader/pkg/logger"
@@ -46,7 +48,12 @@ func main() {
 		MaxRetries:     maxRetries,
 		NumberOfChunks: numOfChunks,
 	}
-	_, err = downloader.DownloadFile(params, l)
+
+	// Creating a context with a timeout of 30 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()  // It's important to cancel when we are finished, to free resources
+
+	_, err = downloader.DownloadFile(ctx, params, l)
 	if err != nil {
 		log.Fatal(err)
 	}

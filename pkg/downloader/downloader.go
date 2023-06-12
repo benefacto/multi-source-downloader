@@ -28,7 +28,7 @@ type DownloadParams struct {
 
 // DownloadFile downloads a file using the specified parameters and logs events with the given logger.
 // It returns the file name and any error encountered.
-func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
+func DownloadFile(ctx context.Context, params DownloadParams, logger logger.Logger) (string, error) {
 	resp, err := http.Head(params.URL)
 	if err != nil {
 		logger.Error("Error making HTTP HEAD request to", params.URL, err)
@@ -47,7 +47,7 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 	chunkSize := int(fileSize) / params.NumberOfChunks
 	remainingBytes := int(fileSize) % params.NumberOfChunks
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -55,6 +55,7 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 	var merr *multierror.Error
 	merrMux := &sync.Mutex{}
 
+	// Use a single http.Client for all requests
 	client := &http.Client{}
 
 	// Ensure output directory exists
@@ -63,21 +64,26 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 		return "", err
 	}
 
+	sem := make(chan struct{}, params.NumberOfChunks) // control concurrency
 	for currentChunkIndex := 0; currentChunkIndex < params.NumberOfChunks; currentChunkIndex++ {
 		wg.Add(1)
-		go func(currentChunkIndex int, client *http.Client) {
+		go func(currentChunkIndex int) {
 			defer wg.Done()
+			sem <- struct{}{}        // Acquire a token
+			defer func() { <-sem }() // Release the token
 			err := downloadChunk(currentChunkIndex, chunkSize, remainingBytes, params, ctx, client, merr, merrMux, cancel, tempFiles, logger)
 			if err != nil {
 				merrMux.Lock()
 				merr = multierror.Append(merr, err)
 				merrMux.Unlock()
 				logger.Error("Error downloading chunk", currentChunkIndex, err)
+				cancel() // cancel all operations when an error is encountered
 			}
-		}(currentChunkIndex, client)
+		}(currentChunkIndex)
 	}
 
 	wg.Wait()
+	close(sem)
 	if merr != nil {
 		return "", merr.ErrorOrNil()
 	}
@@ -98,6 +104,11 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 		return "", err
 	}
 
+	// delete temporary files after merging them into the final file
+	for _, tmpFile := range tempFiles {
+		os.Remove(tmpFile)
+	}
+
 	return fileName, nil
 }
 
@@ -106,52 +117,57 @@ func DownloadFile(params DownloadParams, logger logger.Logger) (string, error) {
 func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params DownloadParams, ctx context.Context, client *http.Client, merr *multierror.Error, merrMux *sync.Mutex, cancel context.CancelFunc, tempFiles []string, logger logger.Logger) error {
 	var lastErr error
 	for retries := 0; retries < params.MaxRetries; retries++ {
-		start := currentChunkIndex * chunkSize
-		end := start + chunkSize - 1
-		if currentChunkIndex == params.NumberOfChunks-1 {
-			end += remainingBytes
-		}
-
-		req, err := http.NewRequest("GET", params.URL, nil)
-		if err != nil {
-			logger.Error("Chunk", currentChunkIndex, "had an error making HTTP GET request to", params.URL, err)
-			return err
-		}
-		logger.Info("Chunk", currentChunkIndex, "successfully made HTTP GET request to", params.URL)
-
-		rangeHeader := fmt.Sprintf("bytes=%d-%d", start, end)
-		req.Header.Add("Range", rangeHeader)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			logger.Error("Chunk", currentChunkIndex, "had an error making HTTP Range request to", params.URL, err)
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() && retries < params.MaxRetries-1 {
-				logger.Info("Retrying chunk", currentChunkIndex, "...")
-				lastErr = err
-				time.Sleep(time.Second * time.Duration(retries+1)) // exponential back-off
-				continue
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			start := currentChunkIndex * chunkSize
+			end := start + chunkSize - 1
+			if currentChunkIndex == params.NumberOfChunks-1 {
+				end += remainingBytes
 			}
-			return err
-		}
-		defer resp.Body.Close()
 
-		tmpFileName := fmt.Sprintf("./output/tmpfile_%d", currentChunkIndex)
-		tempFiles[currentChunkIndex] = tmpFileName // save name of temp file
-		tmpFile, err := os.Create(tmpFileName)
-		if err != nil {
-			logger.Error("Chunk", currentChunkIndex, "had an error creating temporary file", tmpFileName, err)
-			return err
-		}
-		defer tmpFile.Close()
+			req, err := http.NewRequest("GET", params.URL, nil)
+			if err != nil {
+				logger.Error("Chunk", currentChunkIndex, "had an error making HTTP GET request to", params.URL, err)
+				return err
+			}
+			logger.Info("Chunk", currentChunkIndex, "successfully made HTTP GET request to", params.URL)
 
-		_, err = io.Copy(tmpFile, resp.Body)
-		if err != nil {
-			logger.Error("Chunk", currentChunkIndex, "had an error writing to temporary file", tmpFileName, err)
-			return err
-		}
-		logger.Info("Chunk", currentChunkIndex, "successfully wrote to temporary file", tmpFileName)
+			rangeHeader := fmt.Sprintf("bytes=%d-%d", start, end)
+			req.Header.Add("Range", rangeHeader)
 
-		break
+			resp, err := client.Do(req)
+			if err != nil {
+				logger.Error("Chunk", currentChunkIndex, "had an error making HTTP Range request to", params.URL, err)
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() && retries < params.MaxRetries-1 {
+					logger.Info("Retrying chunk", currentChunkIndex, "...")
+					lastErr = err
+					time.Sleep(time.Second * time.Duration(retries+1)) // exponential back-off
+					continue
+				}
+				return err
+			}
+			defer resp.Body.Close()
+
+			tmpFileName := fmt.Sprintf("./output/tmpfile_%d", currentChunkIndex)
+			tempFiles[currentChunkIndex] = tmpFileName // save name of temp file
+			tmpFile, err := os.Create(tmpFileName)
+			if err != nil {
+				logger.Error("Chunk", currentChunkIndex, "had an error creating temporary file", tmpFileName, err)
+				return err
+			}
+			defer tmpFile.Close()
+
+			_, err = io.Copy(tmpFile, resp.Body)
+			if err != nil {
+				logger.Error("Chunk", currentChunkIndex, "had an error writing to temporary file", tmpFileName, err)
+				return err
+			}
+			logger.Info("Chunk", currentChunkIndex, "successfully wrote to temporary file", tmpFileName)
+
+			return nil
+		}
 	}
 	return lastErr
 }
@@ -159,7 +175,7 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 // mergeFiles merges temporary files into a single output file.
 // It also verifies the integrity of the download by comparing the MD5 hash of the output file with the ETag received from the server.
 func mergeFiles(tempFiles []string, etag string, outputFile *os.File, logger logger.Logger) error {
-	md5HashTempFiles := md5.New()
+	md5Hash := md5.New()
 	for _, tmpFileName := range tempFiles {
 		tmpFile, err := os.Open(tmpFileName)
 		if err != nil {
@@ -169,38 +185,20 @@ func mergeFiles(tempFiles []string, etag string, outputFile *os.File, logger log
 		defer tmpFile.Close()
 		logger.Info("Successfully opened temporary file", tmpFileName)
 
-		// Write contents of tmpFile to outputFile and md5HashTempFiles
-		if _, err := io.Copy(outputFile, io.TeeReader(tmpFile, md5HashTempFiles)); err != nil {
-			logger.Error("Error writing content of temporary file to output file", tmpFileName, err)
+		// Write contents of tmpFile to outputFile and md5Hash
+		if _, err := io.Copy(outputFile, io.TeeReader(tmpFile, md5Hash)); err != nil {
+			logger.Error("Error writing temporary file", tmpFileName, "to output file", err)
 			return err
-		} else {
-			logger.Info("Successfully wrote content of temporary file to output file", tmpFileName)
 		}
-
-		os.Remove(tmpFileName)
+		logger.Info("Successfully wrote temporary file", tmpFileName, "to output file")
 	}
 
-	checksumTempFiles := fmt.Sprintf(`"md5:%x"`, md5HashTempFiles.Sum(nil))
-	if checksumTempFiles != etag {
-		logger.Warning("MD5 checksum of temp files", checksumTempFiles, "does not match ETag", etag)
-	} else {
-		logger.Info("MD5 checksum of temp files", checksumTempFiles, "matches ETag", etag)
+	// Check if the downloaded file's md5 hash matches the server's ETag (minus the W/ prefix, if present)
+	etagHash := fmt.Sprintf(`"md5:%x"`, md5Hash.Sum(nil))
+	if etagHash != etag {
+		return fmt.Errorf("file integrity check failed: MD5 hash %v does not match ETag %v", etagHash, etag)
 	}
-
-	// Reopen the output file and calculate its MD5 checksum
-	outputFile.Seek(0, 0)
-	md5HashFinalFile := md5.New()
-	if _, err := io.Copy(md5HashFinalFile, outputFile); err != nil {
-		logger.Error("Error calculating MD5 checksum of output file", err)
-		return err
-	}
-
-	checksumFinalFile := fmt.Sprintf(`"md5:%x"`, md5HashFinalFile.Sum(nil))
-	if checksumFinalFile != etag {
-		logger.Warning("MD5 checksum of output file", checksumFinalFile, "does not match ETag", etag)
-	} else {
-		logger.Info("MD5 checksum of output file", checksumFinalFile, "matches ETag", etag)
-	}
-
+	logger.Info("File integrity check passed: MD5 hash matches ETag")
 	return nil
 }
+
