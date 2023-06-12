@@ -32,19 +32,24 @@ Before running the application, create a `.env` file at the root of the project 
 
 You can easily run the downloader using Golang or Docker:
 
-- **Using Golang**:
+### Golang
 
-    1. Clone the repository to your local machine.
-    2. Navigate to the root directory of the project.
-    3. Create a `.env` file and populate it with the necessary values. Refer to `.env.example` for the required keys.
-    4. Run the command: `go run cmd/main.go`
+If you do not wish to use Docker or if you have issues with Docker, you can run the application directly on your system using Go:
 
-- **Using Docker**:
+1. Navigate to the root directory of the project.
+2. Run the command: `go run cmd/main.go`
 
-    1. Build the Docker image with: `docker-compose build`
-    2. Start the service with: `docker-compose up`
+### Docker
 
-To run tests, navigate to the root directory of the project and run `go test ./...`
+This application can be run using Docker. Before using Docker, please ensure you have Docker and Docker Compose installed on your system.
+
+1. Build the Docker image with: `docker-compose build`
+2. Start the service with: `docker-compose up`
+
+**Note**: The Docker configuration creates an output directory on the host machine for the downloaded file. This directory is mounted as a Docker volume and is, by default, owned by the `root` user because the Docker process runs as `root`. This means that `root` permissions are required to access or manage the files in the output directory. If you encounter permission issues while trying to access the downloaded file, you might need to change the file permissions with a command like `sudo chown -R $(id -u):$(id -g) ./output` or use root permissions to access the files.
+
+### Running the Tests
+To run the test suite, navigate to the root directory of the project and execute `go test ./....`
 
 ## Optimization History & Future Enhancement
 
