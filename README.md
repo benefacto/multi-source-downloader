@@ -2,7 +2,7 @@
 
 The multi-source downloader is a Golang application designed to download [a single file](https://zenodo.org/record/4435114/files/supplement.csv?download=1) in parallel chunks from a public web server. The purpose is to emulate the functionality of protocols like BitTorrent where a file is downloaded in portions from multiple sources. However, this application downloads different parts of the same file from a single source. It is capable of handling large files (60MB or more) and doesn't need to know the file size beforehand.
 
-The application also has the added functionality of verifying the downloaded file if the server returns an `etag` in a known hash format (assumed to be MD5). This isn't a requirement, but it's a good-to-have feature to ensure the integrity of the downloaded file.
+The application also has the added functionality of verifying the downloaded file, requiring the server to return an `etag` in a MD5 hash format. This ensures the integrity of the downloaded file.
 
 ## Directory Structure
 
