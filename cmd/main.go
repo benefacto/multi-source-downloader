@@ -49,7 +49,7 @@ func main() {
 		NumberOfChunks: numOfChunks,
 	}
 
-	// Creating a context with a timeout of 30 seconds
+	// Creating a context with a timeout of 20 minutes
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()  // It's important to cancel when we are finished, to free resources
 
