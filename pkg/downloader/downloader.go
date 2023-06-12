@@ -193,7 +193,7 @@ func mergeFiles(tempFiles []string, etag string, outputFile *os.File, logger log
 		logger.Info("Successfully wrote temporary file", tmpFileName, "to output file")
 	}
 
-	// Check if the downloaded file's md5 hash matches the server's ETag (minus the W/ prefix, if present)
+	// Check if the downloaded file's md5 hash matches the server's ETag
 	etagHash := fmt.Sprintf(`"md5:%x"`, md5Hash.Sum(nil))
 	if etagHash != etag {
 		return fmt.Errorf("file integrity check failed: MD5 hash %v does not match ETag %v", etagHash, etag)
