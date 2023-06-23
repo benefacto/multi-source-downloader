@@ -64,26 +64,33 @@ func DownloadFile(ctx context.Context, params DownloadParams, logger logger.Logg
 		return "", err
 	}
 
-	sem := make(chan struct{}, params.NumberOfChunks) // control concurrency
-	for currentChunkIndex := 0; currentChunkIndex < params.NumberOfChunks; currentChunkIndex++ {
+	// Create a channel to feed worker routines.
+	chunkIndexChannel := make(chan int, params.NumberOfChunks)
+	for i := 0; i < params.NumberOfChunks; i++ {
+		chunkIndexChannel <- i
+	}
+	close(chunkIndexChannel)
+
+	// Create worker routines
+	for i := 0; i < params.NumberOfChunks; i++ {
 		wg.Add(1)
-		go func(currentChunkIndex int) {
+		go func() {
 			defer wg.Done()
-			sem <- struct{}{}        // Acquire a token
-			defer func() { <-sem }() // Release the token
-			err := downloadChunk(currentChunkIndex, chunkSize, remainingBytes, params, ctx, client, merr, merrMux, cancel, tempFiles, logger)
-			if err != nil {
-				merrMux.Lock()
-				merr = multierror.Append(merr, err)
-				merrMux.Unlock()
-				logger.Error("Error downloading chunk", currentChunkIndex, err)
-				cancel() // cancel all operations when an error is encountered
+			for currentChunkIndex := range chunkIndexChannel {
+				err := downloadChunk(currentChunkIndex, chunkSize, remainingBytes, params, ctx, client, merr, merrMux, cancel, tempFiles, logger)
+				if err != nil {
+					merrMux.Lock()
+					merr = multierror.Append(merr, err)
+					merrMux.Unlock()
+					logger.Error("Error downloading chunk", currentChunkIndex, err)
+					cancel() // cancel all operations when an error is encountered
+					return
+				}
 			}
-		}(currentChunkIndex)
+		}()
 	}
 
 	wg.Wait()
-	close(sem)
 	if merr != nil {
 		return "", merr.ErrorOrNil()
 	}
@@ -127,7 +134,7 @@ func downloadChunk(currentChunkIndex, chunkSize, remainingBytes int, params Down
 				end += remainingBytes
 			}
 
-			req, err := http.NewRequest("GET", params.URL, nil)
+			req, err := http.NewRequestWithContext(ctx, "GET", params.URL, nil) // context provided to network call
 			if err != nil {
 				logger.Error("Chunk", currentChunkIndex, "had an error making HTTP GET request to", params.URL, err)
 				return err
@@ -201,4 +208,3 @@ func mergeFiles(tempFiles []string, etag string, outputFile *os.File, logger log
 	logger.Info("File integrity check passed: MD5 hash matches ETag")
 	return nil
 }
-
